@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReadAloud — E-Book Reader</title>
+<style>
+/* ── CSS Variables ── */
+:root {
+  --bg:         #0f0f1a;
+  --bg-panel:   #1a1a2e;
+  --bg-card:    #16213e;
+  --bg-input:   #0d1020;
+  --text:       #dde0f0;
+  --text-muted: #7878a0;
+  --accent:     #4ecca3;
+  --accent2:    #e05fa0;
+  --hl-bg:      rgba(78,204,163,.13);
+  --hl-border:  #4ecca3;
+  --border:     #252545;
+  --btn-bg:     #252545;
+  --btn-hover:  #303060;
+  --shadow:     0 4px 24px rgba(0,0,0,.5);
+  --radius:     10px;
+  --trans:      .2s ease;
+  --font-read:  'Georgia', 'Times New Roman', serif;
+  --font-ui:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+[data-theme="light"] {
+  --bg:         #f0efe8;
+  --bg-panel:   #ffffff;
+  --bg-card:    #f8f7f2;
+  --bg-input:   #ffffff;
+  --text:       #1a1a2e;
+  --text-muted: #666688;
+  --accent:     #1e9e80;
+  --accent2:    #c0306e;
+  --hl-bg:      rgba(30,158,128,.10);
+  --hl-border:  #1e9e80;
+  --border:     #dddde8;
+  --btn-bg:     #e8e8f0;
+  --btn-hover:  #d5d5e5;
+  --shadow:     0 4px 24px rgba(0,0,0,.12);
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+  transition: background var(--trans), color var(--trans);
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+select, input, textarea { font-family: inherit; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── App shell ── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* ── Header ── */
+header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; height: 52px; flex-shrink: 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+.logo { font-size: 1.15rem; font-weight: 700; color: var(--accent); letter-spacing: -.5px; }
+.logo span { color: var(--text-muted); font-weight: 400; }
+#bookTitle {
+  flex: 1; background: none; border: none; color: var(--text);
+  font-size: .95rem; font-style: italic; outline: none;
+  min-width: 0; text-align: center;
+}
+.hdr-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--btn-bg); color: var(--text);
+  font-size: 1rem; display: grid; place-items: center;
+  transition: background var(--trans);
+}
+.hdr-btn:hover { background: var(--btn-hover); }
+
+/* ── Main area ── */
+#main { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+/* ── Import screen ── */
+#importScreen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 24px; padding: 40px; width: 100%; height: 100%;
+}
+.import-box {
+  width: 100%; max-width: 780px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px; box-shadow: var(--shadow);
+}
+.import-box h2 { font-size: 1.3rem; margin-bottom: 6px; }
+.import-box p { color: var(--text-muted); font-size: .9rem; margin-bottom: 18px; }
+.field-row { display: flex; gap: 12px; margin-bottom: 14px; }
+.field-row input {
+  flex: 1; padding: 10px 14px; border-radius: 8px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text); font-size: .95rem; outline: none;
+}
+.field-row input:focus { border-color: var(--accent); }
+#pasteArea {
+  width: 100%; height: 260px; padding: 14px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: .95rem;
+  resize: vertical; outline: none; line-height: 1.65;
+}
+#pasteArea:focus { border-color: var(--accent); }
+#pasteArea::placeholder { color: var(--text-muted); }
+.btn-start {
+  margin-top: 16px; width: 100%; padding: 13px;
+  background: var(--accent); color: #0f0f1a; font-size: 1rem;
+  font-weight: 700; border-radius: 8px;
+  transition: opacity var(--trans), transform var(--trans);
+}
+.btn-start:hover { opacity: .9; transform: translateY(-1px); }
+.stats-row { color: var(--text-muted); font-size: .82rem; margin-top: 10px; text-align: right; }
+
+/* ── Reader ── */
+#readerScreen { display: none; flex: 1; overflow: hidden; position: relative; }
+
+#paragraphsWrapper {
+  height: 100%; overflow-y: auto; padding: 32px 0 120px;
+}
+#paragraphsInner {
+  max-width: 740px; margin: 0 auto; padding: 0 28px;
+}
+
+.para-block {
+  margin-bottom: 6px; border-radius: 8px;
+  border-left: 3px solid transparent;
+  transition: border-color var(--trans), background var(--trans);
+  cursor: pointer; padding: 10px 14px;
+}
+.para-block:hover { background: var(--hl-bg); }
+.para-block.active {
+  background: var(--hl-bg);
+  border-left-color: var(--hl-border);
+}
+/* ── Paragraph header row: number + inline buttons ── */
+.para-header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 5px;
+}
+.para-num {
+  font-size: .71rem; color: var(--text-muted);
+  font-family: var(--font-ui);
+  user-select: none; flex: 1;
+}
+.para-inline-btns {
+  display: flex; gap: 3px;
+  opacity: 0; transition: opacity var(--trans);
+}
+/* show on hover OR when paragraph is active */
+.para-block:hover .para-inline-btns,
+.para-block.active .para-inline-btns { opacity: 1; }
+
+.pib {
+  display: grid; place-items: center;
+  width: 26px; height: 22px; border-radius: 5px;
+  border: none; cursor: pointer; font-size: .78rem; line-height: 1;
+  background: var(--btn-bg); color: var(--text-muted);
+  transition: background var(--trans), color var(--trans), transform .1s;
+}
+.pib:hover { background: var(--btn-hover); color: var(--text); transform: scale(1.1); }
+/* active play state */
+.pib.pib-play.is-playing {
+  background: var(--hl-bg); color: var(--accent);
+}
+/* translated state */
+.pib.pib-tr.is-translated { color: var(--accent); }
+/* translating spinner inside button */
+.pib.pib-tr.is-loading { animation: pulse 1s infinite; }
+
+.para-text {
+  font-family: var(--font-read);
+  line-height: 1.85;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.para-translation {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-family: var(--font-read);
+  line-height: 1.75;
+  color: var(--text-muted);
+  font-size: .93em;
+  display: none;
+}
+.para-translation.visible { display: block; }
+
+/* ── Bottom controls ── */
+#controls {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  padding: 14px 20px 14px;
+  display: none; flex-direction: column; gap: 10px;
+  z-index: 50;
+}
+.controls-row { display: flex; align-items: center; gap: 12px; }
+.progress-bar-wrap {
+  flex: 1; height: 4px; background: var(--border);
+  border-radius: 2px; cursor: pointer; position: relative;
+}
+.progress-bar-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 2px; transition: width .3s ease;
+}
+.ctrl-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--btn-bg); color: var(--text);
+  font-size: 1.1rem; display: grid; place-items: center;
+  transition: background var(--trans), transform var(--trans);
+  flex-shrink: 0;
+}
+.ctrl-btn:hover { background: var(--btn-hover); transform: scale(1.05); }
+#playBtn {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent); color: #0f0f1a;
+  font-size: 1.4rem; display: grid; place-items: center;
+  transition: background var(--trans), transform var(--trans);
+  flex-shrink: 0;
+}
+#playBtn:hover { opacity: .9; transform: scale(1.05); }
+#playBtn:disabled { opacity: .4; cursor: default; }
+.para-counter { font-size: .83rem; color: var(--text-muted); white-space: nowrap; min-width: 72px; text-align: right; }
+#loadingIndicator {
+  font-size: .78rem; color: var(--accent);
+  animation: pulse 1.2s infinite;
+  display: none;
+}
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+/* ── Settings Sidebar ── */
+#sidebar {
+  width: 300px; flex-shrink: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto; padding: 20px;
+  display: none; flex-direction: column; gap: 18px;
+  transition: width var(--trans);
+}
+#sidebar.open { display: flex; }
+
+.setting-group label.group-label {
+  display: block; font-size: .72rem; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .08em; margin-bottom: 10px;
+}
+.setting-group { border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+.setting-group:last-child { border-bottom: none; }
+
+.setting-row {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 10px;
+  margin-bottom: 10px;
+}
+.setting-row:last-child { margin-bottom: 0; }
+.setting-row span { font-size: .85rem; color: var(--text-muted); white-space: nowrap; }
+.setting-row .val { font-size: .82rem; color: var(--accent); min-width: 36px; text-align: right; }
+
+input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; height: 4px; background: var(--border);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+}
+
+select {
+  width: 100%; padding: 8px 10px; border-radius: 7px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  color: var(--text); font-size: .88rem; outline: none;
+  cursor: pointer;
+}
+select:focus { border-color: var(--accent); }
+
+/* Toggle switch */
+.toggle-wrap { display: flex; align-items: center; gap: 10px; }
+.toggle-label { font-size: .85rem; color: var(--text-muted); flex: 1; }
+.toggle {
+  width: 42px; height: 22px; border-radius: 11px;
+  background: var(--border); position: relative; cursor: pointer;
+  transition: background var(--trans); flex-shrink: 0;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute;
+  top: 3px; left: 3px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff;
+  transition: transform var(--trans);
+}
+.toggle.on::after { transform: translateX(20px); }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 18px;
+  font-size: .88rem; color: var(--text);
+  opacity: 0; transition: all .3s; pointer-events: none; z-index: 999;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Voices loading ── */
+#voicesLoading {
+  font-size: .82rem; color: var(--text-muted);
+  text-align: center; padding: 8px;
+  animation: pulse 1.2s infinite;
+}
+
+/* ── Tab switcher ── */
+.tab-row {
+  display: flex; gap: 4px; margin-bottom: 20px;
+  background: var(--bg-input); border-radius: 8px; padding: 4px;
+}
+.tab-btn {
+  flex: 1; padding: 8px; border-radius: 6px;
+  font-size: .88rem; color: var(--text-muted);
+  transition: background var(--trans), color var(--trans);
+}
+.tab-btn.active { background: var(--btn-bg); color: var(--text); font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Drop zone ── */
+.drop-zone {
+  border: 2px dashed var(--border); border-radius: 10px;
+  padding: 40px 24px; text-align: center; cursor: pointer;
+  transition: border-color var(--trans), background var(--trans);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent); background: var(--hl-bg);
+}
+.drop-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-icon { font-size: 2.8rem; margin-bottom: 12px; }
+.drop-zone h3 { font-size: 1rem; margin-bottom: 6px; }
+.drop-zone p  { font-size: .83rem; color: var(--text-muted); }
+.drop-zone .fmt-badges {
+  display: flex; gap: 8px; justify-content: center; margin-top: 14px;
+}
+.fmt-badge {
+  padding: 3px 10px; border-radius: 20px;
+  background: var(--btn-bg); font-size: .78rem;
+  color: var(--accent); font-weight: 700; letter-spacing: .04em;
+}
+
+/* File selected state */
+.file-chosen {
+  margin-top: 14px; padding: 12px 16px;
+  background: var(--hl-bg); border: 1px solid var(--hl-border);
+  border-radius: 8px; display: none;
+  align-items: center; gap: 12px;
+}
+.file-chosen.visible { display: flex; }
+.file-chosen .file-name { flex: 1; font-size: .9rem; font-weight: 600; color: var(--text); }
+.file-chosen .file-size { font-size: .8rem; color: var(--text-muted); }
+.file-clear { font-size: 1rem; color: var(--text-muted); padding: 2px 6px; }
+.file-clear:hover { color: var(--text); }
+
+/* Upload progress */
+#uploadProgress {
+  margin-top: 14px; display: none;
+  align-items: center; gap: 10px; font-size: .85rem; color: var(--accent);
+}
+#uploadProgress.visible { display: flex; }
+.spinner {
+  width: 16px; height: 16px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  #sidebar { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">🔊 Read<span>Aloud</span></div>
+    <input id="bookTitle" type="text" placeholder="Book title…" autocomplete="off">
+    <button class="hdr-btn" id="importBtn" title="Import new text">📂</button>
+    <button class="hdr-btn" id="settingsBtn" title="Settings">⚙️</button>
+    <button class="hdr-btn" id="themeBtn" title="Toggle theme">🌙</button>
+  </header>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <!-- Import screen -->
+    <div id="importScreen">
+      <div class="import-box">
+        <h2>&#128214; Import Book</h2>
+
+        <!-- Tab switcher -->
+        <div class="tab-row">
+          <button class="tab-btn active" data-tab="file">&#128193; Open file</button>
+          <button class="tab-btn"        data-tab="paste">&#128203; Paste text</button>
+        </div>
+
+        <!-- File tab -->
+        <div class="tab-panel active" id="tabFile">
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".epub,.fb2">
+            <div class="drop-icon">&#128218;</div>
+            <h3>Drop your book here or click to browse</h3>
+            <p>Supports EPUB and FB2 formats &mdash; up to 50 MB</p>
+            <div class="fmt-badges">
+              <span class="fmt-badge">EPUB</span>
+              <span class="fmt-badge">FB2</span>
+            </div>
+          </div>
+
+          <div class="file-chosen" id="fileChosen">
+            <span>&#128196;</span>
+            <span class="file-name" id="chosenName">&mdash;</span>
+            <span class="file-size" id="chosenSize"></span>
+            <button class="file-clear" id="fileClear" title="Remove">&#10005;</button>
+          </div>
+
+          <div id="uploadProgress">
+            <div class="spinner"></div>
+            <span id="uploadMsg">Parsing book&hellip;</span>
+          </div>
+
+          <button class="btn-start" id="openFileBtn" style="margin-top:16px" disabled>
+            Open Book &rarr;
+          </button>
+        </div>
+
+        <!-- Paste tab -->
+        <div class="tab-panel" id="tabPaste">
+          <div class="field-row">
+            <input id="titleInput" type="text" placeholder="Book or article title (optional)">
+          </div>
+          <textarea id="pasteArea" placeholder="Paste your text here&#10;&#10;Each blank line = new paragraph."></textarea>
+          <div class="stats-row" id="pasteStats">0 paragraphs &middot; 0 words</div>
+          <button class="btn-start" id="startBtn">Start Reading &rarr;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reader screen -->
+    <div id="readerScreen">
+      <div id="paragraphsWrapper">
+        <div id="paragraphsInner"></div>
+      </div>
+
+      <!-- Bottom controls -->
+      <div id="controls">
+        <div class="controls-row">
+          <div class="progress-bar-wrap" id="progressBar">
+            <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+          </div>
+          <span class="para-counter"><span id="curPara">0</span>/<span id="totPara">0</span></span>
+        </div>
+        <div class="controls-row" style="justify-content:center; gap:16px;">
+          <button class="ctrl-btn" id="prevBtn" title="Previous paragraph">⏮</button>
+          <button class="ctrl-btn" id="rewindBtn" title="Restart paragraph">↺</button>
+          <button id="playBtn" title="Play / Pause">▶</button>
+          <button class="ctrl-btn" id="stopBtn" title="Stop">⏹</button>
+          <button class="ctrl-btn" id="nextBtn" title="Next paragraph">⏭</button>
+          <span id="loadingIndicator">⏳ Loading…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <!-- Voice -->
+      <div class="setting-group">
+        <label class="group-label">Voice</label>
+        <div id="voicesLoading">Loading voices…</div>
+        <select id="voiceSelect" style="display:none"></select>
+      </div>
+
+      <!-- Playback -->
+      <div class="setting-group">
+        <label class="group-label">Playback</label>
+        <div class="setting-row">
+          <span>Speed</span>
+          <input type="range" id="rateRange" min="-50" max="100" value="0" step="5">
+          <span class="val" id="rateVal">0%</span>
+        </div>
+        <div class="setting-row">
+          <span>Pitch</span>
+          <input type="range" id="pitchRange" min="-10" max="10" value="0" step="1">
+          <span class="val" id="pitchVal">0 Hz</span>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="setting-group">
+        <label class="group-label">Display</label>
+        <div class="setting-row">
+          <span>Font size</span>
+          <input type="range" id="fontRange" min="14" max="32" value="18" step="1">
+          <span class="val" id="fontVal">18px</span>
+        </div>
+        <div class="setting-row" style="margin-top:6px;">
+          <div class="toggle-wrap">
+            <span class="toggle-label">Auto-scroll</span>
+            <div class="toggle on" id="scrollToggle"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Translation -->
+      <div class="setting-group">
+        <label class="group-label">Translation</label>
+        <div class="setting-row" style="margin-bottom:12px;">
+          <div class="toggle-wrap">
+            <span class="toggle-label">Show translation</span>
+            <div class="toggle" id="transToggle"></div>
+          </div>
+        </div>
+        <div class="setting-row" style="display:block">
+          <label style="font-size:.82rem;color:var(--text-muted);display:block;margin-bottom:6px;">Target language</label>
+          <select id="langSelect">
+            <option value="ru">🇷🇺 Russian</option>
+            <option value="de">🇩🇪 German</option>
+            <option value="fr">🇫🇷 French</option>
+            <option value="es">🇪🇸 Spanish</option>
+            <option value="pt">🇵🇹 Portuguese</option>
+            <option value="it">🇮🇹 Italian</option>
+            <option value="pl">🇵🇱 Polish</option>
+            <option value="uk">🇺🇦 Ukrainian</option>
+            <option value="zh-CN">🇨🇳 Chinese (Simplified)</option>
+            <option value="ja">🇯🇵 Japanese</option>
+            <option value="ko">🇰🇷 Korean</option>
+            <option value="ar">🇸🇦 Arabic</option>
+            <option value="tr">🇹🇷 Turkish</option>
+            <option value="nl">🇳🇱 Dutch</option>
+            <option value="sv">🇸🇪 Swedish</option>
+          </select>
+        </div>
+        <button id="translateAllBtn" style="
+          margin-top:12px; width:100%; padding:9px;
+          background:var(--btn-bg); color:var(--text); border-radius:8px;
+          font-size:.85rem; transition:background var(--trans);">
+          Translate all paragraphs
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  paragraphs: [],
+  currentIndex: 0,
+  isPlaying: false,
+  isPaused: false,
+  autoScroll: true,
+  translateEnabled: false,
+  translationCache: {},    // index → translated text
+  audioQueue: null,        // current Audio element
+  preloaded: null,         // { audio, index }
+  voices: {},
+  settings: {
+    voice: 'en-US-AriaNeural',
+    rate: 0,
+    pitch: 0,
+    fontSize: 18,
+    lang: 'ru',
+  }
+};
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const importScreen   = $('importScreen');
+const readerScreen   = $('readerScreen');
+const controls       = $('controls');
+const sidebar        = $('sidebar');
+const pasteArea      = $('pasteArea');
+const pasteStats     = $('pasteStats');
+const paragraphsInner= $('paragraphsInner');
+const bookTitle      = $('bookTitle');
+const playBtn        = $('playBtn');
+const loadingInd     = $('loadingIndicator');
+const progressFill   = $('progressFill');
+const curParaSpan    = $('curPara');
+const totParaSpan    = $('totPara');
+const voiceSelect    = $('voiceSelect');
+const rateRange      = $('rateRange');
+const pitchRange     = $('pitchRange');
+const fontRange      = $('fontRange');
+const rateVal        = $('rateVal');
+const pitchVal       = $('pitchVal');
+const fontVal        = $('fontVal');
+const transToggle    = $('transToggle');
+const scrollToggle   = $('scrollToggle');
+const langSelect     = $('langSelect');
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function toast(msg, dur = 2500) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function splitParagraphs(text) {
+  return text.split(/\n{2,}|\r\n{2,}/)
+    .map(p => p.replace(/\r?\n/g, ' ').trim())
+    .filter(p => p.length > 1);
+}
+
+function countWords(text) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function updateProgress() {
+  const n = S.paragraphs.length;
+  const i = S.currentIndex;
+  curParaSpan.textContent = i + 1;
+  totParaSpan.textContent = n;
+  progressFill.style.width = n > 1 ? `${(i / (n - 1)) * 100}%` : '0%';
+}
+
+function setFontSize(px) {
+  document.querySelectorAll('.para-text').forEach(el => el.style.fontSize = px + 'px');
+  document.querySelectorAll('.para-translation').forEach(el => el.style.fontSize = (px * 0.93) + 'px');
+  fontVal.textContent = px + 'px';
+  S.settings.fontSize = px;
+}
+
+// ── Voice loading ──────────────────────────────────────────────────────────
+async function loadVoices() {
+  try {
+    const r = await fetch('/api/voices');
+    S.voices = await r.json();
+
+    // Preferred locales at top
+    const preferred = ['en-US','en-GB','en-AU','en-CA','en-IE','en-IN'];
+    const allLocales = Object.keys(S.voices);
+    const ordered = [
+      ...preferred.filter(l => S.voices[l]),
+      ...allLocales.filter(l => !preferred.includes(l))
+    ];
+
+    voiceSelect.innerHTML = '';
+    for (const locale of ordered) {
+      const group = document.createElement('optgroup');
+      group.label = locale;
+      for (const v of S.voices[locale]) {
+        const opt = document.createElement('option');
+        opt.value = v.name;
+        const gender = v.gender === 'Female' ? '♀' : '♂';
+        opt.textContent = `${gender} ${v.display.replace('Microsoft ', '').replace(' Online (Natural) - ', ' · ')}`;
+        if (v.name === 'en-US-AriaNeural') opt.selected = true;
+        group.appendChild(opt);
+      }
+      voiceSelect.appendChild(group);
+    }
+
+    $('voicesLoading').style.display = 'none';
+    voiceSelect.style.display = 'block';
+  } catch (e) {
+    $('voicesLoading').textContent = 'Failed to load voices';
+  }
+}
+
+// ── Tab switcher ───────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab' + btn.dataset.tab.charAt(0).toUpperCase() + btn.dataset.tab.slice(1)).classList.add('active');
+  });
+});
+
+// ── File upload ────────────────────────────────────────────────────────────
+let selectedFile = null;
+
+function formatBytes(n) {
+  if (n < 1024)       return n + ' B';
+  if (n < 1048576)    return (n/1024).toFixed(1) + ' KB';
+  return (n/1048576).toFixed(1) + ' MB';
+}
+
+function setChosenFile(file) {
+  selectedFile = file;
+  $('chosenName').textContent = file.name;
+  $('chosenSize').textContent = formatBytes(file.size);
+  $('fileChosen').classList.add('visible');
+  $('openFileBtn').disabled = false;
+}
+
+function clearChosenFile() {
+  selectedFile = null;
+  $('fileInput').value = '';
+  $('fileChosen').classList.remove('visible');
+  $('openFileBtn').disabled = true;
+}
+
+$('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) setChosenFile(e.target.files[0]);
+});
+
+$('fileClear').addEventListener('click', e => {
+  e.stopPropagation();
+  clearChosenFile();
+});
+
+// Drag & drop
+const dropZone = $('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const name = file.name.toLowerCase();
+  if (!name.endsWith('.epub') && !name.endsWith('.fb2')) {
+    toast('Only .epub and .fb2 files are supported');
+    return;
+  }
+  setChosenFile(file);
+});
+
+$('openFileBtn').addEventListener('click', async () => {
+  if (!selectedFile) return;
+  $('openFileBtn').disabled = true;
+  $('uploadProgress').classList.add('visible');
+  $('uploadMsg').textContent = 'Parsing book\u2026';
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    $('uploadProgress').classList.remove('visible');
+
+    if (data.error) {
+      toast('Error: ' + data.error, 4000);
+      $('openFileBtn').disabled = false;
+      return;
+    }
+    loadBook(data.paragraphs, data.title);
+  } catch (err) {
+    $('uploadProgress').classList.remove('visible');
+    $('openFileBtn').disabled = false;
+    toast('Upload failed: ' + err.message, 4000);
+  }
+});
+
+// ── Text import (paste tab) ────────────────────────────────────────────────
+pasteArea.addEventListener('input', () => {
+  const paras = splitParagraphs(pasteArea.value);
+  const words = countWords(pasteArea.value);
+  pasteStats.textContent = `${paras.length} paragraph${paras.length !== 1 ? 's' : ''} \u00b7 ${words.toLocaleString()} words`;
+});
+
+$('startBtn').addEventListener('click', () => {
+  const raw = pasteArea.value.trim();
+  if (!raw) { toast('Please paste some text first'); return; }
+  const paras = splitParagraphs(raw);
+  if (paras.length === 0) { toast('No readable paragraphs found'); return; }
+  const title = $('titleInput').value.trim();
+  loadBook(paras, title);
+});
+
+function loadBook(paras, title) {
+  S.paragraphs = paras;
+  S.currentIndex = 0;
+  S.translationCache = {};
+  stopAudio();
+
+  bookTitle.value = title || '';
+  renderParagraphs();
+
+  importScreen.style.display = 'none';
+  readerScreen.style.display = 'block';
+  controls.style.display    = 'flex';
+  sidebar.classList.add('open');
+
+  updateProgress();
+  scrollToActive(false);
+  toast(`📖 Loaded ${paras.length} paragraphs`);
+}
+
+function renderParagraphs() {
+  paragraphsInner.innerHTML = '';
+  S.paragraphs.forEach((text, i) => {
+    // ── block wrapper ──
+    const block = document.createElement('div');
+    block.className = 'para-block' + (i === 0 ? ' active' : '');
+    block.dataset.index = i;
+
+    // ── header row: number + inline buttons ──
+    const header = document.createElement('div');
+    header.className = 'para-header';
+
+    const num = document.createElement('div');
+    num.className = 'para-num';
+    num.textContent = `\u00b6 ${i + 1}`;
+
+    const btnWrap = document.createElement('div');
+    btnWrap.className = 'para-inline-btns';
+
+    // ▶ Play button
+    const playB = document.createElement('button');
+    playB.className = 'pib pib-play';
+    playB.id = `pib-play-${i}`;
+    playB.title = 'Play from here';
+    playB.textContent = '\u25b6'; // ▶
+    playB.addEventListener('click', e => {
+      e.stopPropagation();
+      if (S.isPlaying && !S.isPaused && S.currentIndex === i) {
+        // pause if already playing this paragraph
+        S.isPaused = true; S.isPlaying = false;
+        if (S.audioQueue) S.audioQueue.pause();
+        playBtn.textContent = '\u25b6';
+        refreshInlinePlayBtn(i);
+      } else {
+        stopAudio();
+        playFromIndex(i);
+      }
+    });
+
+    // 🌍 Translate button
+    const trB = document.createElement('button');
+    trB.className = 'pib pib-tr';
+    trB.id = `pib-tr-${i}`;
+    trB.title = 'Translate this paragraph';
+    trB.textContent = '\ud83c\udf0d'; // 🌍
+    trB.addEventListener('click', e => {
+      e.stopPropagation();
+      // toggle: if translation visible → hide, else fetch & show
+      const trEl = $(`tr-${i}`);
+      if (trEl.classList.contains('visible')) {
+        trEl.classList.remove('visible');
+        trB.classList.remove('is-translated');
+      } else {
+        translateParagraphInline(i);
+      }
+    });
+
+    btnWrap.appendChild(playB);
+    btnWrap.appendChild(trB);
+    header.appendChild(num);
+    header.appendChild(btnWrap);
+
+    // ── paragraph text ──
+    const pt = document.createElement('div');
+    pt.className = 'para-text';
+    pt.style.fontSize = S.settings.fontSize + 'px';
+    pt.textContent = text;
+
+    // ── translation ──
+    const tr = document.createElement('div');
+    tr.className = 'para-translation' + (S.translateEnabled ? ' visible' : '');
+    tr.id = `tr-${i}`;
+    tr.textContent = S.translationCache[i] || '';
+
+    block.appendChild(header);
+    block.appendChild(pt);
+    block.appendChild(tr);
+    // click on text body = jump without playing
+    block.addEventListener('click', () => jumpTo(i));
+    paragraphsInner.appendChild(block);
+  });
+  totParaSpan.textContent = S.paragraphs.length;
+}
+
+// Sync the inline ▶ button icon for a given index
+function refreshInlinePlayBtn(index) {
+  const btn = $(`pib-play-${index}`);
+  if (!btn) return;
+  const active = S.isPlaying && !S.isPaused && S.currentIndex === index;
+  btn.textContent = active ? '\u23f8' : '\u25b6'; // ⏸ or ▶
+  btn.classList.toggle('is-playing', active);
+}
+
+// Called after every state change that affects playback
+function syncAllInlinePlayBtns() {
+  document.querySelectorAll('.pib-play').forEach((btn, i) => {
+    const active = S.isPlaying && !S.isPaused && S.currentIndex === i;
+    btn.textContent = active ? '\u23f8' : '\u25b6';
+    btn.classList.toggle('is-playing', active);
+  });
+}
+
+// Per-paragraph translate (inline button version — always shows result)
+async function translateParagraphInline(index) {
+  const trB  = $(`pib-tr-${index}`);
+  const trEl = $(`tr-${index}`);
+  if (!trEl || !trB) return;
+
+  if (S.translationCache[index] !== undefined) {
+    trEl.textContent = S.translationCache[index];
+    trEl.classList.add('visible');
+    trB.classList.add('is-translated');
+    return;
+  }
+
+  trB.classList.add('is-loading');
+  trEl.textContent = '\u29d6 Translating\u2026';
+  trEl.classList.add('visible');
+
+  try {
+    const r = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: S.paragraphs[index], source: 'auto', target: S.settings.lang })
+    });
+    const data = await r.json();
+    const result = data.translated || data.error || '(error)';
+    S.translationCache[index] = result;
+    trEl.textContent = result;
+    trB.classList.remove('is-loading');
+    trB.classList.add('is-translated');
+  } catch {
+    trEl.textContent = '(translation error)';
+    trB.classList.remove('is-loading');
+  }
+}
+
+// ── Paragraph navigation ───────────────────────────────────────────────────
+function setActive(index) {
+  document.querySelectorAll('.para-block').forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+  });
+  S.currentIndex = index;
+  updateProgress();
+  if (S.autoScroll) scrollToActive();
+}
+
+function scrollToActive(smooth = true) {
+  const el = paragraphsInner.children[S.currentIndex];
+  if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+}
+
+function jumpTo(index) {
+  stopAudio();
+  setActive(index);
+  S.isPaused = false;
+  playBtn.textContent = '▶';
+}
+
+// ── TTS Playback ───────────────────────────────────────────────────────────
+function showLoading(v) {
+  loadingInd.style.display = v ? 'inline' : 'none';
+}
+
+async function fetchAudio(text) {
+  const r = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      voice: S.settings.voice,
+      rate:  S.settings.rate,
+      pitch: S.settings.pitch,
+    })
+  });
+  if (!r.ok) throw new Error('TTS failed');
+  const blob = await r.blob();
+  const url  = URL.createObjectURL(blob);
+  return new Audio(url);
+}
+
+async function playFromIndex(index) {
+  if (index >= S.paragraphs.length) {
+    playBtn.textContent = '\u25b6';
+    S.isPlaying = false;
+    syncAllInlinePlayBtns();
+    toast('\u2705 Finished reading');
+    return;
+  }
+
+  setActive(index);
+  S.isPlaying = true;
+  S.isPaused  = false;
+  playBtn.textContent = '\u23f8'; // ⏸
+  syncAllInlinePlayBtns();
+  showLoading(true);
+
+  // Auto-translate current paragraph if global translation is on
+  if (S.translateEnabled && !S.translationCache[index]) {
+    translateParagraph(index);
+  }
+
+  let audio;
+  if (S.preloaded && S.preloaded.index === index) {
+    audio = S.preloaded.audio;
+    S.preloaded = null;
+  } else {
+    try {
+      audio = await fetchAudio(S.paragraphs[index]);
+    } catch (e) {
+      toast('\u26a0\ufe0f Audio error, skipping');
+      showLoading(false);
+      if (S.isPlaying) playFromIndex(index + 1);
+      return;
+    }
+  }
+
+  showLoading(false);
+  S.audioQueue = audio;
+
+  audio.onended = () => {
+    if (S.isPlaying && !S.isPaused) playFromIndex(index + 1);
+  };
+  audio.play();
+
+  preloadNext(index + 1);
+}
+
+async function preloadNext(index) {
+  if (index >= S.paragraphs.length) return;
+  if (S.preloaded?.index === index) return;
+  try {
+    const audio = await fetchAudio(S.paragraphs[index]);
+    S.preloaded = { audio, index };
+  } catch (_) {}
+}
+
+function stopAudio() {
+  if (S.audioQueue) {
+    S.audioQueue.pause();
+    S.audioQueue.onended = null;
+    S.audioQueue = null;
+  }
+  S.isPlaying = false;
+  S.isPaused  = false;
+  S.preloaded = null;
+  playBtn.textContent = '\u25b6';
+  showLoading(false);
+  syncAllInlinePlayBtns();
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+playBtn.addEventListener('click', () => {
+  if (S.paragraphs.length === 0) return;
+
+  if (S.isPlaying && !S.isPaused) {
+    // Pause
+    S.isPaused = true;
+    S.isPlaying = false;
+    if (S.audioQueue) S.audioQueue.pause();
+    playBtn.textContent = '\u25b6';
+    syncAllInlinePlayBtns();
+  } else if (S.isPaused && S.audioQueue) {
+    // Resume
+    S.isPaused = false;
+    S.isPlaying = true;
+    S.audioQueue.onended = () => {
+      if (S.isPlaying) playFromIndex(S.currentIndex + 1);
+    };
+    S.audioQueue.play();
+    playBtn.textContent = '\u23f8';
+    syncAllInlinePlayBtns();
+  } else {
+    // Fresh start
+    playFromIndex(S.currentIndex);
+  }
+});
+
+$('stopBtn').addEventListener('click', () => {
+  stopAudio();
+  setActive(S.currentIndex);
+});
+
+$('nextBtn').addEventListener('click', () => {
+  const next = S.currentIndex + 1;
+  if (next >= S.paragraphs.length) { toast('Already at last paragraph'); return; }
+  const wasPlaying = S.isPlaying;
+  stopAudio();
+  setActive(next);
+  if (wasPlaying) playFromIndex(next);
+});
+
+$('prevBtn').addEventListener('click', () => {
+  const prev = S.currentIndex - 1;
+  if (prev < 0) { toast('Already at first paragraph'); return; }
+  const wasPlaying = S.isPlaying;
+  stopAudio();
+  setActive(prev);
+  if (wasPlaying) playFromIndex(prev);
+});
+
+$('rewindBtn').addEventListener('click', () => {
+  const wasPlaying = S.isPlaying;
+  stopAudio();
+  setActive(S.currentIndex);
+  if (wasPlaying) playFromIndex(S.currentIndex);
+});
+
+// Progress bar click
+$('progressBar').addEventListener('click', e => {
+  if (S.paragraphs.length === 0) return;
+  const pct = e.offsetX / e.currentTarget.offsetWidth;
+  const idx = Math.round(pct * (S.paragraphs.length - 1));
+  const wasPlaying = S.isPlaying;
+  stopAudio();
+  setActive(idx);
+  if (wasPlaying) playFromIndex(idx);
+});
+
+// ── Translation ────────────────────────────────────────────────────────────
+async function translateParagraph(index) {
+  if (S.translationCache[index] !== undefined) {
+    showTranslation(index, S.translationCache[index]);
+    return;
+  }
+  const el = $(`tr-${index}`);
+  if (el) el.textContent = '⏳ Translating…';
+
+  try {
+    const r = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text:   S.paragraphs[index],
+        source: 'auto',
+        target: S.settings.lang,
+      })
+    });
+    const data = await r.json();
+    const translated = data.translated || data.error || '(error)';
+    S.translationCache[index] = translated;
+    showTranslation(index, translated);
+  } catch (e) {
+    if (el) el.textContent = '(translation error)';
+  }
+}
+
+function showTranslation(index, text) {
+  const el  = $(`tr-${index}`);
+  const trB = $(`pib-tr-${index}`);
+  if (el)  { el.textContent = text; el.classList.add('visible'); }
+  if (trB) { trB.classList.remove('is-loading'); trB.classList.add('is-translated'); }
+}
+
+transToggle.addEventListener('click', () => {
+  S.translateEnabled = !S.translateEnabled;
+  transToggle.classList.toggle('on', S.translateEnabled);
+
+  document.querySelectorAll('.para-translation').forEach((el, i) => {
+    if (S.translateEnabled) {
+      el.classList.add('visible');
+      if (!S.translationCache[i]) translateParagraph(i);
+      else el.textContent = S.translationCache[i];
+    } else {
+      el.classList.remove('visible');
+    }
+  });
+});
+
+$('translateAllBtn').addEventListener('click', async () => {
+  toast('Translating all paragraphs…', 4000);
+  for (let i = 0; i < S.paragraphs.length; i++) {
+    if (!S.translationCache[i]) await translateParagraph(i);
+  }
+  toast('✅ All translated');
+});
+
+langSelect.addEventListener('change', () => {
+  S.settings.lang = langSelect.value;
+  S.translationCache = {};
+  document.querySelectorAll('.para-translation').forEach(el => { el.textContent = ''; });
+  if (S.translateEnabled) {
+    document.querySelectorAll('.para-block').forEach((_, i) => translateParagraph(i));
+  }
+});
+
+// ── Settings controls ─────────────────────────────────────────────────────
+voiceSelect.addEventListener('change', () => {
+  S.settings.voice = voiceSelect.value;
+  S.preloaded = null;
+});
+
+rateRange.addEventListener('input', () => {
+  const v = parseInt(rateRange.value);
+  S.settings.rate = v;
+  rateVal.textContent = (v >= 0 ? '+' : '') + v + '%';
+  S.preloaded = null;
+});
+
+pitchRange.addEventListener('input', () => {
+  const v = parseInt(pitchRange.value);
+  S.settings.pitch = v;
+  pitchVal.textContent = (v >= 0 ? '+' : '') + v + ' Hz';
+  S.preloaded = null;
+});
+
+fontRange.addEventListener('input', () => {
+  setFontSize(parseInt(fontRange.value));
+});
+
+scrollToggle.addEventListener('click', () => {
+  S.autoScroll = !S.autoScroll;
+  scrollToggle.classList.toggle('on', S.autoScroll);
+});
+
+// ── Header buttons ────────────────────────────────────────────────────────
+$('importBtn').addEventListener('click', () => {
+  stopAudio();
+  readerScreen.style.display = 'none';
+  controls.style.display    = 'none';
+  sidebar.classList.remove('open');
+  importScreen.style.display = 'flex';
+});
+
+$('settingsBtn').addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+});
+
+$('themeBtn').addEventListener('click', () => {
+  const html = document.documentElement;
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? 'light' : 'dark';
+  $('themeBtn').textContent = isDark ? '☀️' : '🌙';
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { e.preventDefault(); playBtn.click(); }
+  if (e.code === 'ArrowRight') $('nextBtn').click();
+  if (e.code === 'ArrowLeft')  $('prevBtn').click();
+  if (e.code === 'KeyR')       $('rewindBtn').click();
+  if (e.code === 'Escape')     stopAudio();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadVoices();
+</script>
+</body>
+</html>
