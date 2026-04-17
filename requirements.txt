@@ -2,4 +2,5 @@ flask>=3.0
 edge-tts>=6.1
 deep-translator>=1.11
 beautifulsoup4>=4.12
-gunicorn>=25.3.0.
+lxml
+gunicorn
