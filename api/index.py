@@ -1,23 +1,30 @@
-from flask import Flask, render_template, request, jsonify, send_file
+"""
+Vercel entry point for the ebook_reader Flask app.
 
-from tts import generate_audio
-from translate import translate_text
-from utils import load_book
+Vercel's @vercel/python builder looks for a variable named `app`
+in this file that is a WSGI callable.
 
-app = Flask(__name__)
+Layout on disk (repo root):
+  api/
+    index.py        ← this file
+  templates/
+    index.html
+  app.py            ← Flask app with all routes
+  requirements.txt
+  vercel.json
+"""
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+import os
+import sys
 
-@app.route("/api/tts", methods=["POST"])
-def tts():
-    text = request.json["text"]
-    audio_path = generate_audio(text)
-    return send_file(audio_path, mimetype="audio/mpeg")
+# Make the repo root importable so `from app import app` works.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
-@app.route("/api/translate", methods=["POST"])
-def translate():
-    text = request.json["text"]
-    lang = request.json["lang"]
-    return jsonify({"result": translate_text(text, lang)})
+# Import the Flask instance.
+# app.py must expose its Flask object as `app`.
+from app import app  # noqa: F401  ← Vercel picks up this name
+
+# ── nothing else needed ──
+# Vercel calls  app(environ, start_response)  directly.
