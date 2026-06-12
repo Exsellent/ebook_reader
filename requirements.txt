@@ -1,3 +1,4 @@
+tts
 flask>=3.0
 edge-tts>=6.1
 deep-translator>=1.11
